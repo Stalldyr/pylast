@@ -28,6 +28,11 @@ import ssl
 import tempfile
 import time
 import xml.dom
+import datetime
+import requests
+#import xmltodict
+#from ftplib import FTP
+from lxml import html as html2
 from http.client import HTTPSConnection
 from urllib.parse import quote_plus
 from xml.dom import Node, minidom
@@ -120,7 +125,6 @@ SSL_CONTEXT = ssl.create_default_context()
 
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).addHandler(logging.NullHandler())
-
 
 class _Network:
     """
@@ -1474,7 +1478,7 @@ class _Opus(_Taggable):
 
     __hash__ = _BaseObject.__hash__
 
-    def __init__(self, artist, title, network, ws_prefix, username=None, info=None):
+    def __init__(self, artist, title, network, ws_prefix, username=None, info=None,releaseyear=None):
         """
         Create an opus instance.
         # Parameters:
@@ -1496,6 +1500,7 @@ class _Opus(_Taggable):
         self.title = title
         self.username = username
         self.info = info
+        self.releaseyear = releaseyear
 
     def __repr__(self):
         return "pylast.{}({}, {}, {})".format(
@@ -1610,6 +1615,16 @@ class _Opus(_Taggable):
                 tag_name == "*" or child.tagName == tag_name
             ):
                 yield child
+    '''
+     def get_releaseyear(self):
+        album_url = album[0].get_url()
+
+        page = requests.get(album_url)
+        tree = html.fromstring(page.content)
+        release_dates = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')
+        print(album[0])
+        print(release_dates[-1])
+    '''
 
 
 class Album(_Opus):
@@ -1617,8 +1632,8 @@ class Album(_Opus):
 
     __hash__ = _Opus.__hash__
 
-    def __init__(self, artist, title, network, username=None, info=None):
-        super().__init__(artist, title, network, "album", username, info)
+    def __init__(self, artist, title, network, username=None, info=None,releaseyear=None):
+        super().__init__(artist, title, network, "album", username, info,releaseyear)
 
     def get_tracks(self):
         """Returns the list of Tracks on this album."""
@@ -1653,6 +1668,21 @@ class Album(_Opus):
             "album": title,
         }
 
+    def get_releaseyear(self):
+        album_url = self.get_url()
+
+        page = requests.get(album_url)
+        tree = html2.fromstring(page.content)
+        release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
+        release_year = datetime.datetime.strptime(release_date, '%d %B %Y')
+
+        self.releaseyear = release_year
+
+        return release_year
+
+    
+   
+    
 
 class Artist(_Taggable):
     """An artist."""
