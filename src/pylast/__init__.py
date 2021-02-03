@@ -897,6 +897,13 @@ class _Request:
             data.append("=".join((name, quote_plus(_string(self.params[name])))))
         data = "&".join(data)
 
+        if "api_sig" in self.params.keys():
+            method = "POST"
+            url_parameters = ""
+        else:
+            method = "GET"
+            url_parameters = "?" + data
+
         headers = {
             "Content-type": "application/x-www-form-urlencoded",
             "Accept-Charset": "utf-8",
@@ -914,11 +921,11 @@ class _Request:
 
             try:
                 conn.request(
-                    method="POST",
-                    url="https://" + host_name + host_subdir,
-                    body=data,
-                    headers=headers,
-                )
+                    #method="POST",
+                    #url="https://" + host_name + host_subdir,
+                    #body=data,
+                    #headers=headers,
+                    url="https://" + host_name + host_subdir + url_parameters,method=method, body=data, headers=headers)
             except Exception as e:
                 raise NetworkError(self.network, e)
 
@@ -926,7 +933,8 @@ class _Request:
             conn = HTTPSConnection(context=SSL_CONTEXT, host=host_name)
 
             try:
-                conn.request(method="POST", url=host_subdir, body=data, headers=headers)
+                #conn.request(method="POST", url=host_subdir, body=data, headers=headers)
+                conn.request( url=host_subdir + url_parameters, body=data,method=method, headers=headers)
             except Exception as e:
                 raise NetworkError(self.network, e)
 
@@ -1615,16 +1623,6 @@ class _Opus(_Taggable):
                 tag_name == "*" or child.tagName == tag_name
             ):
                 yield child
-    '''
-     def get_releaseyear(self):
-        album_url = album[0].get_url()
-
-        page = requests.get(album_url)
-        tree = html.fromstring(page.content)
-        release_dates = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')
-        print(album[0])
-        print(release_dates[-1])
-    '''
 
 
 class Album(_Opus):
@@ -1668,13 +1666,26 @@ class Album(_Opus):
             "album": title,
         }
 
-    def get_releaseyear(self):
+
+    def get_releaseyear(self,mb_network):
+        album_mbid = self.get_mbid()
+
+        release_group = mb_network.browse_release_groups(release=album_mbid)
+        release_date = release_group['release-group-list'][0]['first-release-date']
+        release_year = release_date.split("-")[0]
+
+        self.releaseyear = release_year
+
+        return release_year
+
+
+    def get_releaseyear_lastfm(self):
         album_url = self.get_url()
 
         page = requests.get(album_url)
         tree = html2.fromstring(page.content)
         release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
-        release_year = datetime.datetime.strptime(release_date, '%d %B %Y')
+        release_year = release_date #datetime.datetime.strptime(release_date, '%d %B %Y')
 
         self.releaseyear = release_year
 
