@@ -912,6 +912,8 @@ class _Request:
 
         (host_name, host_subdir) = self.network.ws_server
 
+        #ws_url = "https://" + host_name + host_subdir + "?" + data
+
         if self.network.is_proxy_enabled():
             conn = HTTPSConnection(
                 context=SSL_CONTEXT,
@@ -925,7 +927,9 @@ class _Request:
                     #url="https://" + host_name + host_subdir,
                     #body=data,
                     #headers=headers,
-                    url="https://" + host_name + host_subdir + url_parameters,method=method, body=data, headers=headers)
+                    #method = "GET",
+                    url="https://" + host_name + host_subdir + url_parameters,method=method, body=data, headers=headers
+                    )
             except Exception as e:
                 raise NetworkError(self.network, e)
 
