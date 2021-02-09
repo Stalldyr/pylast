@@ -30,8 +30,6 @@ import time
 import xml.dom
 import datetime
 import requests
-#import xmltodict
-#from ftplib import FTP
 from lxml import html as html2
 from http.client import HTTPSConnection
 from urllib.parse import quote_plus
@@ -897,6 +895,7 @@ class _Request:
             data.append("=".join((name, quote_plus(_string(self.params[name])))))
         data = "&".join(data)
 
+        
         if "api_sig" in self.params.keys():
             method = "POST"
             url_parameters = ""
@@ -914,13 +913,14 @@ class _Request:
 
         #ws_url = "https://" + host_name + host_subdir + "?" + data
 
+
         if self.network.is_proxy_enabled():
             conn = HTTPSConnection(
                 context=SSL_CONTEXT,
                 host=self.network._get_proxy()[0],
                 port=self.network._get_proxy()[1],
             )
-
+            
             try:
                 conn.request(
                     #method="POST",
@@ -935,7 +935,7 @@ class _Request:
 
         else:
             conn = HTTPSConnection(context=SSL_CONTEXT, host=host_name)
-
+            
             try:
                 #conn.request(method="POST", url=host_subdir, body=data, headers=headers)
                 conn.request( url=host_subdir + url_parameters, body=data,method=method, headers=headers)
@@ -959,6 +959,9 @@ class _Request:
             self._check_response_for_errors(response_text)
         finally:
             conn.close()
+
+        #print(response_text)
+
         return response_text
 
     def execute(self, cacheable=False):
@@ -1490,7 +1493,7 @@ class _Opus(_Taggable):
 
     __hash__ = _BaseObject.__hash__
 
-    def __init__(self, artist, title, network, ws_prefix, username=None, info=None,releaseyear=None):
+    def __init__(self, artist, title, network, ws_prefix, username=None, info=None,releaseyear=None,playcount=None):
         """
         Create an opus instance.
         # Parameters:
@@ -1513,6 +1516,7 @@ class _Opus(_Taggable):
         self.username = username
         self.info = info
         self.releaseyear = releaseyear
+        self.playcount = playcount
 
     def __repr__(self):
         return "pylast.{}({}, {}, {})".format(
@@ -1594,10 +1598,14 @@ class _Opus(_Taggable):
             return
 
         params = self._get_params()
-        params["username"] = self.username
+        #params["username"] = self.username
 
         doc = self._request(self.ws_prefix + ".getInfo", True, params)
-        return _number(_extract(doc, "userplaycount"))
+
+        userplaycount = _number(_extract(doc, "userplaycount"))
+        self.playcount = userplaycount
+
+        return userplaycount
 
     def get_listener_count(self):
         """Returns the number of listeners on the network"""
@@ -1634,8 +1642,8 @@ class Album(_Opus):
 
     __hash__ = _Opus.__hash__
 
-    def __init__(self, artist, title, network, username=None, info=None,releaseyear=None):
-        super().__init__(artist, title, network, "album", username, info,releaseyear)
+    def __init__(self, artist, title, network, username=None, info=None,releaseyear=None,playcount=None):
+        super().__init__(artist, title, network, "album", username, info,releaseyear,playcount)
 
     def get_tracks(self):
         """Returns the list of Tracks on this album."""
@@ -1670,33 +1678,34 @@ class Album(_Opus):
             "album": title,
         }
 
+    def get_mbinfo(self,mb_network):
+        try: 
+            album_mbid = self.get_mbid()
 
-    def get_releaseyear(self,mb_network):
-        album_mbid = self.get_mbid()
+            release_group = mb_network.browse_release_groups(release=album_mbid)
 
-        release_group = mb_network.browse_release_groups(release=album_mbid)
-        release_date = release_group['release-group-list'][0]['first-release-date']
-        release_year = release_date.split("-")[0]
+            release_date = release_group['release-group-list'][0]['first-release-date']
+            release_year = release_date.split("-")[0]
+            release_type = release_group['release-group-list'][0]['type']
 
-        self.releaseyear = release_year
+            return release_year, release_type
 
-        return release_year
+        except:
+            try: 
+                album_url = self.get_url()
 
+                page = requests.get(album_url)
+                tree = html2.fromstring(page.content)
+                release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
+                release_year = release_date.split(" ")[-1]
 
-    def get_releaseyear_lastfm(self):
-        album_url = self.get_url()
+                self.releaseyear = release_year
 
-        page = requests.get(album_url)
-        tree = html2.fromstring(page.content)
-        release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
-        release_year = release_date #datetime.datetime.strptime(release_date, '%d %B %Y')
-
-        self.releaseyear = release_year
-
-        return release_year
-
-    
-   
+                return release_year, "Unknown"
+        
+            except:
+                print(self)
+                return None,None
     
 
 class Artist(_Taggable):
