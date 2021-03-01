@@ -960,8 +960,6 @@ class _Request:
         finally:
             conn.close()
 
-        #print(response_text)
-
         return response_text
 
     def execute(self, cacheable=False):
@@ -1679,7 +1677,7 @@ class Album(_Opus):
         }
 
     def get_mbinfo(self,mb_network):
-        try: 
+        try:
             album_mbid = self.get_mbid()
 
             release_group = mb_network.browse_release_groups(release=album_mbid)
@@ -1691,21 +1689,45 @@ class Album(_Opus):
             return release_year, release_type
 
         except:
-            try: 
-                album_url = self.get_url()
+            try:
+                release_group = mb_network.search_release_groups("artist:" + str(self.artist) + " AND " + "release:" + str(self.title),limit=1)
 
-                page = requests.get(album_url)
-                tree = html2.fromstring(page.content)
-                release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
-                release_year = release_date.split(" ")[-1]
+                release_date = release_group['release-group-list'][0]['first-release-date']
+                release_year = release_date.split("-")[0]
+                release_type = release_group['release-group-list'][0]['type']
 
-                self.releaseyear = release_year
+                name = release_group['release-group-list'][0]['artist-credit'][0]['name']
+                title = release_group['release-group-list'][0]['title']
 
-                return release_year, "Unknown"
+                release_title = release_group['release-group-list'][0]['title'].replace(',','').replace("’","'")
+
+                if release_title.lower() == str(self.title).lower():
+                    release_date = release_group['release-group-list'][0]['first-release-date']
+                    release_year = release_date.split("-")[0]
+                    release_type = release_group['release-group-list'][0]['type']
+                else:
+                    print(str(self), " vs. ", name, "-",title,"(",release_year,")")
+                    release_year = self.get_releaseyearlastfm()
+                    release_type = 'Unknown'
+                
+
+                return release_year, release_type
         
             except:
                 print(self)
                 return None,None
+
+    def get_releaseyearlastfm(self):
+            album_url = self.get_url()
+
+            page = requests.get(album_url)
+            tree = html2.fromstring(page.content)
+            release_date = tree.xpath('//dd[@class="catalogue-metadata-description"]/text()')[-1]
+            release_year = release_date.split(" ")[-1]
+
+            self.releaseyear = release_year
+
+            return release_year
     
 
 class Artist(_Taggable):
